@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+jinja2
+httpx
+requests
+pytest
+pytest-cov
+playwright
+pylint
+pytest-pylint

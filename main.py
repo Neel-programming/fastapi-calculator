@@ -1,11 +1,18 @@
 # main.py
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.auth import hash_password
+from app.database import Base, engine, get_db
+from app.models import User
 from app.operations import add, subtract, multiply, divide
+from app.schemas import UserCreate, UserRead
 import uvicorn
 import logging
 
@@ -17,6 +24,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Create any tables that do not yet exist.
+Base.metadata.create_all(bind=engine)
 
 logger.info("Calculator API started.")
 
@@ -132,6 +142,30 @@ async def divide_route(operation: OperationRequest):
     except Exception as e:
         logger.error(f"Divide Operation Internal Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED,
+          responses={400: {"model": ErrorResponse}})
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    """
+    Register a new user with a hashed password.
+    """
+    new_user = User(
+        username=user.username,
+        email=user.email,
+        password_hash=hash_password(user.password),
+    )
+    db.add(new_user)
+    # EAFP: let the database enforce uniqueness rather than querying first
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        logger.error(f"Duplicate registration attempt for {user.username}")
+        raise HTTPException(status_code=400, detail="Username or email already registered.")
+    db.refresh(new_user)
+    logger.info(f"User registered: {user.username}")
+    return new_user
 
 
 if __name__ == "__main__":

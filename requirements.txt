@@ -27,7 +27,8 @@ packaging==26.3
 platformdirs==4.13.6
 playwright==1.64.1
 pluggy==1.7.0
-psycopg2-binary==2.9.13
+psycopg==3.3.8
+psycopg-binary==3.3.8
 pydantic==2.14.1
 pydantic_core==2.50.1
 pyee==14.0.0

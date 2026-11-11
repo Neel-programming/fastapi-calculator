@@ -54,8 +54,28 @@ jobs:
       - name: Run end-to-end tests
         run: pytest tests/e2e
 
-  deploy:
+  scan:
     needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: docker build -t fastapi-calculator:scan .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fastapi-calculator:scan
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+  deploy:
+    needs: scan
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 

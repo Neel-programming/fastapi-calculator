@@ -102,6 +102,24 @@ GitHub Actions runs on every push to `main`:
 
 Image: https://hub.docker.com/r/neelprogramming/fastapi-calculator
 
+The app creates its database tables on startup, so the image needs a PostgreSQL database to connect to. To run it from Docker Hub, start both containers on a shared network:
+
 ```bash
-docker pull neelprogramming/fastapi-calculator:latest
+docker network create calc-net
+docker run -d --name calc-db --network calc-net \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fastapi_db postgres:16
+sleep 10
+docker run -d --name calc-app --network calc-net -p 8000:8000 \
+  -e DATABASE_URL=postgresql://postgres:postgres@calc-db:5432/fastapi_db \
+  neelprogramming/fastapi-calculator:latest
+```
+
+Then open http://localhost:8000. The `sleep 10` gives PostgreSQL time to start before the app connects.
+
+To stop and remove both containers:
+
+```bash
+docker rm -f calc-app calc-db
+docker network rm calc-net
+```
 ```

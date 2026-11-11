@@ -1,1 +1,6 @@
-CVE-2024-6345
+# CVE-2025-47273: setuptools path traversal in PackageIndex
+# False positive. Trivy reads setuptools 70.3.0 from pip's vendor.txt,
+# but pip only bundles pkg_resources, so the vulnerable code is not in the image.
+# The installed setuptools (84.2.1) has no findings.
+# https://github.com/aquasecurity/trivy/discussions/11091
+CVE-2025-47273

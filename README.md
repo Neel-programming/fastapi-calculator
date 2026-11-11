@@ -1,264 +1,107 @@
-# 📦 Project Setup
+# FastAPI Calculator with Secure User Model
 
----
+A FastAPI calculator application with a PostgreSQL-backed user model. Users are stored with SQLAlchemy, validated with Pydantic, and their passwords are hashed with bcrypt. The project is tested at three levels and deployed to Docker Hub through GitHub Actions.
 
-# 🧩 1. Install Homebrew (Mac Only)
+## Features
 
-> Skip this step if you're on Windows.
+- Calculator API with add, subtract, multiply, and divide endpoints
+- SQLAlchemy `User` model with unique username and email constraints
+- Pydantic schemas: `UserCreate` for registration and `UserRead` for responses
+- bcrypt password hashing with a verify function
+- `POST /users` registration endpoint that never returns the password hash
+- Unit, integration, and end-to-end tests
+- CI/CD pipeline that tests against a real PostgreSQL container and pushes the image to Docker Hub
 
-Homebrew is a package manager for macOS.  
-You’ll use it to easily install Git, Python, Docker, etc.
+## Project Structure
 
-**Install Homebrew:**
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+fastapi-calculator/
+├── app/
+│   ├── auth.py              Password hashing and verification
+│   ├── database.py          Engine, session, and Base
+│   ├── models.py            SQLAlchemy User model
+│   ├── schemas.py           Pydantic UserCreate and UserRead
+│   └── operations/          Arithmetic functions
+├── tests/
+│   ├── unit/                Hashing, schema, and arithmetic tests
+│   ├── integration/         API and database tests
+│   └── e2e/                 Playwright browser tests
+├── sql/setup.sql            Raw SQL from the database module
+├── templates/index.html     Calculator web page
+├── main.py                  FastAPI application
+├── Dockerfile
+├── docker-compose.yml       FastAPI, PostgreSQL, and pgAdmin
+└── .github/workflows/test.yml
 ```
 
-**Verify Homebrew:**
+## Setup
 
 ```bash
-brew --version
-```
-
-If you see a version number, you're good to go.
-
----
-
-# 🧩 2. Install and Configure Git
-
-## Install Git
-
-- **MacOS (using Homebrew)**
-
-```bash
-brew install git
-```
-
-- **Windows**
-
-Download and install [Git for Windows](https://git-scm.com/download/win).  
-Accept the default options during installation.
-
-**Verify Git:**
-
-```bash
-git --version
-```
-
----
-
-## Configure Git Globals
-
-Set your name and email so Git tracks your commits properly:
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "your_email@example.com"
-```
-
-Confirm the settings:
-
-```bash
-git config --list
-```
-
----
-
-## Generate SSH Keys and Connect to GitHub
-
-> Only do this once per machine.
-
-1. Generate a new SSH key:
-
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
-
-(Press Enter at all prompts.)
-
-2. Start the SSH agent:
-
-```bash
-eval "$(ssh-agent -s)"
-```
-
-3. Add the SSH private key to the agent:
-
-```bash
-ssh-add ~/.ssh/id_ed25519
-```
-
-4. Copy your SSH public key:
-
-- **Mac/Linux:**
-
-```bash
-cat ~/.ssh/id_ed25519.pub | pbcopy
-```
-
-- **Windows (Git Bash):**
-
-```bash
-cat ~/.ssh/id_ed25519.pub | clip
-```
-
-5. Add the key to your GitHub account:
-   - Go to [GitHub SSH Settings](https://github.com/settings/keys)
-   - Click **New SSH Key**, paste the key, save.
-
-6. Test the connection:
-
-```bash
-ssh -T git@github.com
-```
-
-You should see a success message.
-
----
-
-# 🧩 3. Clone the Repository
-
-Now you can safely clone the course project:
-
-```bash
-git clone <repository-url>
-cd <repository-directory>
-```
-
----
-
-# 🛠️ 4. Install Python 3.10+
-
-## Install Python
-
-- **MacOS (Homebrew)**
-
-```bash
-brew install python
-```
-
-- **Windows**
-
-Download and install [Python for Windows](https://www.python.org/downloads/).  
-✅ Make sure you **check the box** `Add Python to PATH` during setup.
-
-**Verify Python:**
-
-```bash
-python3 --version
-```
-or
-```bash
-python --version
-```
-
----
-
-## Create and Activate a Virtual Environment
-
-(Optional but recommended)
-
-```bash
+git clone https://github.com/Neel-programming/fastapi-calculator.git
+cd fastapi-calculator
 python3 -m venv venv
-source venv/bin/activate   # Mac/Linux
-venv\Scripts\activate.bat  # Windows
-```
-
-### Install Required Packages
-
-```bash
+source venv/bin/activate
 pip install -r requirements.txt
+python -m playwright install --with-deps chromium
 ```
 
----
+## Running the Application
 
-# 🐳 5. (Optional) Docker Setup
-
-> Skip if Docker isn't used in this module.
-
-## Install Docker
-
-- [Install Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-- [Install Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-
-## Build Docker Image
+Start all three services with Docker Compose:
 
 ```bash
-docker build -t <image-name> .
+docker compose up --build
 ```
 
-## Run Docker Container
+- Calculator: http://localhost:8000
+- pgAdmin: http://localhost:5050
+
+## Running Tests Locally
+
+The integration and end-to-end tests need a running PostgreSQL database. Start it first:
 
 ```bash
-docker run -it --rm <image-name>
+docker compose up -d db
 ```
 
----
-
-# 🚀 6. Running the Project
-
-- **Without Docker**:
+Then run the tests:
 
 ```bash
-python main.py
+pytest tests/unit          # hashing, schemas, arithmetic (no database needed)
+pytest tests/integration   # API endpoints and user registration against PostgreSQL
+pytest tests/e2e           # browser tests with Playwright
+pytest                     # everything
 ```
 
-(or update this if the main script is different.)
+The tests connect using the `DATABASE_URL` environment variable. If it is not set, they default to `postgresql://postgres:postgres@localhost:5432/fastapi_db`, which matches the Compose database.
 
-- **With Docker**:
+## User Registration
 
 ```bash
-docker run -it --rm <image-name>
+curl -X POST http://localhost:8000/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"neel","email":"neel@example.com","password":"supersecret123"}'
 ```
 
----
+Response:
 
-# 📝 7. Submission Instructions
+```json
+{"id": 1, "username": "neel", "email": "neel@example.com", "created_at": "2026-11-10T18:57:33.184923"}
+```
 
-After finishing your work:
+The password is hashed with bcrypt before it is stored. The response uses the `UserRead` schema, which has no password field, so the hash cannot be returned. Registering a duplicate username or email returns a 400 error.
+
+## CI/CD
+
+GitHub Actions runs on every push to `main`:
+
+1. **Test:** starts a PostgreSQL service container, then runs the unit, integration, and end-to-end tests.
+2. **Deploy:** if all tests pass, builds the Docker image and pushes it to Docker Hub.
+
+## Docker Hub
+
+Image: https://hub.docker.com/r/neelprogramming/fastapi-calculator
 
 ```bash
-git add .
-git commit -m "Complete Module X"
-git push origin main
+docker pull neelprogramming/fastapi-calculator:latest
 ```
-
-Then submit the GitHub repository link as instructed.
-
----
-
-# 🔥 Useful Commands Cheat Sheet
-
-| Action                         | Command                                          |
-| ------------------------------- | ------------------------------------------------ |
-| Install Homebrew (Mac)          | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| Install Git                     | `brew install git` or Git for Windows installer |
-| Configure Git Global Username  | `git config --global user.name "Your Name"`      |
-| Configure Git Global Email     | `git config --global user.email "you@example.com"` |
-| Clone Repository                | `git clone <repo-url>`                          |
-| Create Virtual Environment     | `python3 -m venv venv`                           |
-| Activate Virtual Environment   | `source venv/bin/activate` / `venv\Scripts\activate.bat` |
-| Install Python Packages        | `pip install -r requirements.txt`               |
-| Build Docker Image              | `docker build -t <image-name> .`                |
-| Run Docker Container            | `docker run -it --rm <image-name>`               |
-| Push Code to GitHub             | `git add . && git commit -m "message" && git push` |
-
----
-
-# 📋 Notes
-
-- Install **Homebrew** first on Mac.
-- Install and configure **Git** and **SSH** before cloning.
-- Use **Python 3.10+** and **virtual environments** for Python projects.
-- **Docker** is optional depending on the project.
-
----
-
-# 📎 Quick Links
-
-- [Homebrew](https://brew.sh/)
-- [Git Downloads](https://git-scm.com/downloads)
-- [Python Downloads](https://www.python.org/downloads/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [GitHub SSH Setup Guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)

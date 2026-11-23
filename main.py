@@ -1,20 +1,17 @@
 # main.py
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+import logging
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
-from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from app.auth import hash_password
-from app.database import Base, engine, get_db
-from app.models import User
+from app.database import init_db
 from app.operations import add, subtract, multiply, divide
-from app.schemas import UserCreate, UserRead
-import uvicorn
-import logging
+from app.routers import calculations, users
 
 # Setup logging
 logging.basicConfig(
@@ -23,10 +20,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(
+    title="FastAPI Calculator",
+    description=(
+        "Register, log in to get a JWT, then click **Authorize** and paste the token "
+        "to use the calculation routes."
+    ),
+    version="1.0.0",
+    openapi_tags=[
+        {"name": "Users", "description": "Register and log in."},
+        {"name": "Calculations", "description": "Browse, Read, Edit, Add, and Delete your calculations. Requires a token."},
+        {"name": "Calculator", "description": "Stateless arithmetic used by the web page."},
+        {"name": "Health", "description": "Used by the Docker health check."},
+    ],
+)
 
 # Create any tables that do not yet exist.
-Base.metadata.create_all(bind=engine)
+init_db()
+
+app.include_router(users.router)
+app.include_router(calculations.router)
 
 logger.info("Calculator API started.")
 
@@ -63,6 +76,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail},
+        headers=exc.headers,  # keeps WWW-Authenticate on 401 responses
     )
 
 
@@ -76,7 +90,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def read_root(request: Request):
     """
     Serve the index.html template.
@@ -85,7 +99,16 @@ async def read_root(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
 
-@app.post("/add", response_model=OperationResponse, responses={400: {"model": ErrorResponse}})
+@app.get("/health", tags=["Health"])
+async def health():
+    """
+    Report that the app is running.
+    """
+    return {"status": "ok"}
+
+
+@app.post("/add", response_model=OperationResponse, responses={400: {"model": ErrorResponse}},
+          tags=["Calculator"])
 async def add_route(operation: OperationRequest):
     """
     Add two numbers.
@@ -99,7 +122,8 @@ async def add_route(operation: OperationRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/subtract", response_model=OperationResponse, responses={400: {"model": ErrorResponse}})
+@app.post("/subtract", response_model=OperationResponse, responses={400: {"model": ErrorResponse}},
+          tags=["Calculator"])
 async def subtract_route(operation: OperationRequest):
     """
     Subtract two numbers.
@@ -113,7 +137,8 @@ async def subtract_route(operation: OperationRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/multiply", response_model=OperationResponse, responses={400: {"model": ErrorResponse}})
+@app.post("/multiply", response_model=OperationResponse, responses={400: {"model": ErrorResponse}},
+          tags=["Calculator"])
 async def multiply_route(operation: OperationRequest):
     """
     Multiply two numbers.
@@ -127,7 +152,8 @@ async def multiply_route(operation: OperationRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/divide", response_model=OperationResponse, responses={400: {"model": ErrorResponse}})
+@app.post("/divide", response_model=OperationResponse, responses={400: {"model": ErrorResponse}},
+          tags=["Calculator"])
 async def divide_route(operation: OperationRequest):
     """
     Divide two numbers.
@@ -142,30 +168,6 @@ async def divide_route(operation: OperationRequest):
     except Exception as e:
         logger.error(f"Divide Operation Internal Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-@app.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED,
-          responses={400: {"model": ErrorResponse}})
-async def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    """
-    Register a new user with a hashed password.
-    """
-    new_user = User(
-        username=user.username,
-        email=user.email,
-        password_hash=hash_password(user.password),
-    )
-    db.add(new_user)
-    # EAFP: let the database enforce uniqueness rather than querying first
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        logger.error(f"Duplicate registration attempt for {user.username}")
-        raise HTTPException(status_code=400, detail="Username or email already registered.")
-    db.refresh(new_user)
-    logger.info(f"User registered: {user.username}")
-    return new_user
 
 
 if __name__ == "__main__":

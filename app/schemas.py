@@ -11,7 +11,22 @@ class UserCreate(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=8, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def fit_bcrypt_limit(cls, value: str) -> str:
+        """bcrypt uses at most 72 bytes, and characters like é take 2 bytes each."""
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes.")
+        return value
+
+
+class UserLogin(BaseModel):
+    """Credentials for logging in."""
+
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1, max_length=72)
 
 
 class UserRead(BaseModel):
@@ -25,6 +40,13 @@ class UserRead(BaseModel):
     created_at: datetime
 
 
+class Token(BaseModel):
+    """The JWT returned by a successful login."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
 class CalculationType(str, Enum):
     """The calculation types the application supports."""
 
@@ -35,7 +57,7 @@ class CalculationType(str, Enum):
 
 
 class CalculationCreate(BaseModel):
-    """Incoming data for a new calculation."""
+    """Incoming data for a new or edited calculation."""
 
     # strict=True accepts real numbers like 10 or 2.5 but rejects True and "10".
     # allow_inf_nan=False rejects NaN and infinity, which are not real operands.
